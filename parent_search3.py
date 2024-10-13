@@ -36,31 +36,17 @@ def load_companies(file_path: str) -> List[Company]:
 def get_company_hierarchy(company: Company) -> None:
     print(f"Getting company hierarchy for {company.name}")
     client = anthropic.Anthropic()
-    prompt = f"""You are tasked with identifying the direct parent company and the global ultimate parent company of a given company. This information is crucial for understanding corporate structures and ownership hierarchies.
+    prompt = f"""Identify the direct parent company and global ultimate parent company of {company.name}.
+Format your response exactly as follows:
+Direct parent: [Name or "None" if the company has no parent, or "Unknown" if you can't find the information]
+Global ultimate parent: [Name or "None" if the company has no global parent, or "Unknown" if you can't find the information]
+Explanation: [Brief explanation of your findings or why you couldn't find the information]
 
-The company you need to research is:
-<company_name>
-{company.name}
-</company_name>
-
-Please follow these steps:
-
-1. Research the ownership structure of the company named above.
-2. Identify the direct parent company, which is the immediate owner or controlling entity of the given company.
-3. Determine the global ultimate parent company, which is the topmost entity in the corporate hierarchy that ultimately owns or controls the given company.
-4. If you cannot find reliable information about either the direct parent or the global ultimate parent, indicate this by writing "Unknown" for that particular entity.
-
-Provide your response in the following format:
-<answer>
-Direct parent: [Name of direct parent company or "Unknown"]
-Global ultimate parent: [Name of global ultimate parent company or "Unknown"]
-</answer>
-
-Important: Only include information that you can verify from reliable sources. Do not speculate or guess. If you cannot find accurate information, it's better to state "Unknown" than to provide potentially incorrect data."""
+Only include verified information. If you're unsure or can't find information, use "Unknown" and explain why in the Explanation section."""
 
     message = client.messages.create(
         model="claude-3-5-sonnet-20240620",
-        max_tokens=1000,
+        max_tokens=300,
         temperature=0,
         messages=[
             {
@@ -71,18 +57,24 @@ Important: Only include information that you can verify from reliable sources. D
     )
 
     response_content = message.content[0].text
-    answer_match = re.search(r'<answer>(.*?)</answer>', response_content, re.DOTALL)
-    if answer_match:
-        answer = answer_match.group(1).strip()
-        direct_parent_match = re.search(r'Direct parent: (.+)', answer)
-        global_parent_match = re.search(r'Global ultimate parent: (.+)', answer)
-        
-        company.direct_parent = direct_parent_match.group(1) if direct_parent_match else "Unknown"
-        company.global_parent = global_parent_match.group(1) if global_parent_match else "Unknown"
+    direct_parent_match = re.search(r'Direct parent: (.+)', response_content)
+    global_parent_match = re.search(r'Global ultimate parent: (.+)', response_content)
+    explanation_match = re.search(r'Explanation: (.+)', response_content, re.DOTALL)
+    
+    if direct_parent_match and global_parent_match:
+        company.direct_parent = direct_parent_match.group(1).strip()
+        company.global_parent = global_parent_match.group(1).strip()
+        explanation = explanation_match.group(1).strip() if explanation_match else "No explanation provided."
     else:
         print(f"Could not extract answer for company: {company.name}")
-        company.direct_parent = "Unknown"
-        company.global_parent = "Unknown"
+        company.direct_parent = "Error"
+        company.global_parent = "Error"
+        explanation = "Error in parsing the response."
+
+    print(f"Hierarchy for {company.name}:")
+    print(f"  Direct Parent: {company.direct_parent}")
+    print(f"  Global Parent: {company.global_parent}")
+    print(f"  Explanation: {explanation}")
 
 
 def process_companies(companies: List[Company]):
