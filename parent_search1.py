@@ -15,6 +15,10 @@ class Company:
         self.global_parent: Optional[str] = None
 
 
+# Caching dictionary to store results and avoid duplicate API calls
+cache = {}
+
+
 def load_companies(file_path: str) -> List[Company]:
     companies = []
     try:
@@ -33,27 +37,32 @@ def load_companies(file_path: str) -> List[Company]:
     return companies
 
 
-def get_company_hierarchy(company: Company) -> Dict[str, str]:
+def get_company_hierarchy(company: Company) -> Company:
+    # Check cache before making API request
+    if company.name in cache:
+        print(f"Using cached result for {company.name}")
+        cached_result = cache[company.name]
+        company.direct_parent = cached_result['direct_parent']
+        company.global_parent = cached_result['global_parent']
+        return company
+
     messages = [
         {
             "role": "system",
-            "content": "You are a CRM data specialist. It would help if you could answer some questions about the company hierarchy. Although you do not have access to reliable and up-to-date corporate ownership data, you should provide what you know about the questions even if you are not confident about the result"
+            "content": "You are an expert in company hierarchy and parent companies. Provide accurate information even if the data is publicly available."
         },
         {
             "role": "user",
-            "content": (
-                f"What is {company.name} direct parent company and its global ultimate parent company? \n"
-                "Please respond in the format: 'Direct parent: [direct parent], Global ultimate parent: [global ultimate parent].' "
-            )
+            "content": f"What is the direct parent company and global ultimate parent company of {company.name}? Respond in the format: 'Direct parent: [direct parent], Global ultimate parent: [global ultimate parent].'"
         }
     ]
 
-    try:
+    try:    
         response = openai.ChatCompletion.create(
             model="gpt-4",  # Use the latest chat model
             messages=messages,
             max_tokens=100,
-            temperature=0.5
+            temperature=0.2
         )
 
         if response and 'choices' in response and len(response.choices) > 0:
@@ -74,8 +83,16 @@ def get_company_hierarchy(company: Company) -> Dict[str, str]:
             else:
                 company.global_parent = "Not found"
 
+            # Store the result in the cache
+            cache[company.name] = {
+                'direct_parent': company.direct_parent,
+                'global_parent': company.global_parent
+            }
+
     except Exception as e:
         print(f"Error with API request: {e}")
+        company.direct_parent = "Not found"
+        company.global_parent = "Not found"
 
     return company
 
@@ -107,7 +124,7 @@ def save_results(companies: List[Company], output_file: str):
 
 def main():
     input_file = 'data/sampleAccount.csv'
-    output_file = 'data/company_hierarchy1.csv'
+    output_file = 'data/company_hierarchy(0.1).csv'
     
     openai.api_key = os.getenv('OPENAI_API_KEY')
 
@@ -119,4 +136,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
