@@ -34,16 +34,29 @@ def load_companies(file_path: str) -> List[Company]:
 
 def get_company_hierarchy(companies: List[Company]) -> Dict[str, Dict[str, str]]:
     results = {}
-    batch_size = 10
+    batch_size = 5
 
     for i in range(0, len(companies), batch_size):
         batch = companies[i:i + batch_size]
         company_data = [{"name": company.name, "domain": company.domain} for company in batch]
         messages = [
-            {"role": "user", "content": f"Here are the companies: {json.dumps(company_data)}. "
-                                         "Please respond with their direct parent and global parent in the following JSON format: "
-                                         "{\"Company Name\": {\"direct_parent\": \"Parent Name\", \"global_parent\": \"Global Parent Name\"}}. "
-                                         "Make sure to include all companies listed."}
+            {
+                "role": "user",
+                "content": f"""
+Here is a list of companies with their names and domains:
+
+{json.dumps(company_data)}
+
+For each company, please provide the **direct parent company** (the company that directly owns or manages them) and the **global parent company** (the top-level company in the hierarchy). 
+
+If you cannot find an exact match, try to infer based on similar domain names or common ownership. If a parent company cannot be found, return "Unknown" for that entry.
+
+Return the results in the following JSON format:
+{{"Company Name": {{"direct_parent": "Parent Name", "global_parent": "Global Parent Name"}}}}
+
+Make sure to include **all companies** listed above, even if the parent or global parent is unknown.
+"""
+            }
         ]
 
         try:
